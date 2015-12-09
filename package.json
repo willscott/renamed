@@ -1,0 +1,28 @@
+{
+  "name": "renamed",
+  "version": "1.0.0",
+  "description": "reflective named server",
+  "main": "index.js",
+  "dependencies": {
+    "native-dns": "^0.7.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/willscott/renamed.git"
+  },
+  "keywords": [
+    "dns",
+    "measurement",
+    "research"
+  ],
+  "author": "Will Scott <willscott@gmail.com> (https://wills.co.tt)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/willscott/renamed/issues"
+  },
+  "homepage": "https://github.com/willscott/renamed#readme"
+}
