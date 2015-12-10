@@ -1,24 +1,24 @@
 var dns = require('native-dns');
 var checksum = require('crc-32');
 
-if (process.argv.length < 3) {
+if (process.argv.length < 4) {
   console.log('Usage: renamed <domain name> <public IP of server>');
   process.exit();
 }
-var rootTLD = process.argv[1].toLowerCase();
-var myip = process.argv[2];
+var rootTLD = process.argv[2].toLowerCase();
+var myip = process.argv[3];
 var server = dns.createServer();
 var sessionDigestKey = require('uuid').v4();
 
 var createChecksum = function (client, server) {
   var str = client + '-' + server + '-' + sessionDigestKey;
-  str = str.replace('.', 'a').replace(':', 'b')
+  str = str.replace(/\./g, 'a').replace(/:/g, 'b')
   return checksum.str(str);
 }
 
 // Return [client,server] if query is valid, or false if not.
 var validateQuery = function (query) {
-  query = query.replace('a', '.').replace('b', ':');
+  query = query.replace(/a/g, '.').replace(/b/g, ':');
   var parts = query.split('-');
   if (parts.length != 3) {
     return false;
@@ -41,13 +41,14 @@ var matchServer = function (client) {
 var createPrefix = function (client, server) {
   var checksum = createChecksum(client, server);
   var prefix = client + '-' + server + '-' + checksum;
-  return prefix.replace('.', 'a').replace(':', 'b');
+  return prefix.replace(/\./g, 'a').replace(/:/g, 'b');
 };
 
 server.on('request', function (req, resp) {
-  if (req.question.length > 0 && req.question[0].type == 'A') {
+  if (req.question.length > 0 && req.question[0].type == 1) {
     var query = req.question[0].name.toLowerCase();
-    console.log(req.address + ':' + query);
+    var addr = req.address.address;
+    console.log(addr + ':' + query);
     // Failures
     if (query.indexOf(rootTLD) === -1) {
       resp.answer.push(dns.A({
@@ -60,8 +61,8 @@ server.on('request', function (req, resp) {
     // Initial query
     } else if (query === rootTLD) {
       // TODO: record attempt at connectivity
-      var server = matchServer(req.address);
-      var delegee = createPrefix(req.address, server) + '.' + rootTLD;
+      var server = matchServer(addr);
+      var delegee = createPrefix(addr, server) + '.' + rootTLD;
       resp.answer.push(dns.CNAME({
         name: query,
         ttl: 5,
@@ -73,7 +74,7 @@ server.on('request', function (req, resp) {
         data: 'ns1.' + delegee
       }));
       resp.additional.push(dns.A({
-        name: 'ns1.' + delgee,
+        name: 'ns1.' + delegee,
         address: server,
         ttl: 5
       }));
