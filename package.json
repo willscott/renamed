@@ -4,7 +4,9 @@
   "description": "reflective named server",
   "main": "index.js",
   "dependencies": {
-    "native-dns": "^0.7.0"
+    "crc-32": "^0.3.0",
+    "native-dns": "^0.7.0",
+    "uuid": "^2.0.1"
   },
   "devDependencies": {},
   "scripts": {
