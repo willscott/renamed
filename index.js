@@ -1,5 +1,7 @@
-var dns = require('native-dns');
 var checksum = require('crc-32');
+var dns = require('native-dns');
+var winston = require('winston');
+winston.cli();
 
 if (process.argv.length < 4) {
   console.log('Usage: renamed <domain name> <public IP of server>');
@@ -13,7 +15,7 @@ var sessionDigestKey = require('uuid').v4();
 var createChecksum = function (client, server) {
   var str = client + '-' + server + '-' + sessionDigestKey;
   str = str.replace(/\./g, 'a').replace(/:/g, 'b')
-  return checksum.str(str);
+  return Math.abs(checksum.str(str));
 }
 
 // Return [client,server] if query is valid, or false if not.
@@ -26,7 +28,7 @@ var validateQuery = function (query) {
   var client = parts[0];
   var server = parts[1];
   var expectedChecksum = createChecksum(client, server);
-  if (parts[2] === expectedChecksum) {
+  if (parts[2] === '' + expectedChecksum) {
     return [client, server];
   } else {
     return false;
@@ -48,7 +50,7 @@ server.on('request', function (req, resp) {
   if (req.question.length > 0 && req.question[0].type == 1) {
     var query = req.question[0].name.toLowerCase();
     var addr = req.address.address;
-    console.log(addr + ':' + query);
+    winston.info(addr + ': ' + query);
     // Failures
     if (query.indexOf(rootTLD) === -1) {
       resp.answer.push(dns.A({
@@ -63,15 +65,22 @@ server.on('request', function (req, resp) {
       // TODO: record attempt at connectivity
       var server = matchServer(addr);
       var delegee = createPrefix(addr, server) + '.' + rootTLD;
+      resp.header.ra = false;
       resp.answer.push(dns.CNAME({
         name: query,
         ttl: 5,
         data: delegee
       }));
-      resp.additional.push(dns.NS({
+      resp.authority.push(dns.SOA({
         name: delegee,
-        ttl: 5,
-        data: 'ns1.' + delegee
+        primary: 'ns1' + delegee,
+        admin: 'measurement.' + rootTLD,
+        serial: new Date().valueOf(),
+        refresh: 5,
+        retry: 5,
+        expiration: 5,
+        minimum: 5,
+        ttl: 5
       }));
       resp.additional.push(dns.A({
         name: 'ns1.' + delegee,
@@ -81,6 +90,7 @@ server.on('request', function (req, resp) {
       resp.send();
       return;
     }
+
     // Successful indicaton of connectivity
     var prefix = query.split(rootTLD)[0];
     prefix = prefix.substr(0, prefix.length - 1);
@@ -94,20 +104,38 @@ server.on('request', function (req, resp) {
       resp.send();
       return;
     } else {
-      // TODO: Log success of client-server. query.
-      // TODO: See if it's been made recently by same server, indicating response dropped.
+      // Queries for the cname are owned by the appropriate delegee.
+      if (addr == parts[0]) {
+        resp.authority.push(dns.NS({
+          name: query,
+          ttl: 5,
+          data: 'ns1.' + query
+        }));
+        resp.additional.push(dns.A({
+          name: 'ns1.' + query,
+          address: parts[1],
+          ttl: 5
+        }));
+        resp.send();
+        return;
+      } else {
+        // TODO: Log success of client-server. query.
+        // TODO: See if it's been made recently by same server, indicating response dropped.
+      /*
       resp.answer.push(dns.CNAME({
         name: query,
         ttl: 5,
         data: 'www.google.com'
       }));
-      resp.answer.push(dns.A({
-        name: 'www.google.com',
-        address: '173.194.123.52',
-        ttl: 5
-      }));
-      resp.send();
-      return;
+      */
+        resp.answer.push(dns.A({
+          name: query,
+          address: addr,
+          ttl: 5
+        }));
+        resp.send();
+        return;
+      }
     }
   }
 });
@@ -117,3 +145,5 @@ server.on('error', function (err) {
 });
 
 server.serve(53);
+winston.info('Running for', rootTLD, myip);
+winston.info('Session Key is', sessionDigestKey);
