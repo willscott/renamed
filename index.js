@@ -36,7 +36,7 @@ var validateQuery = function (query) {
 };
 
 var matchServer = function (client) {
-  var server = '8.8.8.8'; //todo: roundrobin.
+  var server = '208.67.220.220'; //todo: roundrobin.
   return server;
 };
 
