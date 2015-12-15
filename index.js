@@ -63,10 +63,13 @@ var fillCache = function (prefix, server, cb) {
 };
 
 server.on('request', function (req, resp) {
+  if (req.question.length > 0 && req.question[0].type != 1) {
+    winston.info(addr + '[' + req.question[0].type + '] ' + req.question[0].name);
+  }
   if (req.question.length > 0 && req.question[0].type == 1) {
     var query = req.question[0].name.toLowerCase();
     var addr = req.address.address;
-    winston.info(addr + ': ' + query);
+    winston.info(addr + '[A] ' + query);
     // Failures
     if (query.indexOf(rootTLD) === -1) {
       resp.answer.push(dns.A({
