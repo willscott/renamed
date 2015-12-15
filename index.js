@@ -73,8 +73,8 @@ server.on('request', function (req, resp) {
         ttl: 5
       }));
       resp.authority.push(dns.SOA({
-        name: delegee,
-        primary: 'ns1' + delegee,
+        name: rootTLD,
+        primary: 'ns1' + rootTLD,
         admin: 'measurement.' + rootTLD,
         serial: new Date().valueOf(),
         refresh: 5,
