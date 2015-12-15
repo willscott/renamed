@@ -64,12 +64,12 @@ server.on('request', function (req, resp) {
     } else if (query === "ns1." + rootTLD || query === "ns2." + rootTLD) {
       resp.answer.push(dns.A({
         name: 'ns1.' + rootTLD,
-        address: server,
+        address: myip,
         ttl: 5
       }));
       resp.answer.push(dns.A({
         name: 'ns2.' + rootTLD,
-        address: server,
+        address: myip,
         ttl: 5
       }));
       resp.authority.push(dns.SOA({
