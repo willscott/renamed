@@ -14,9 +14,9 @@ var sessionDigestKey = require('uuid').v4();
 
 var createChecksum = function (client, server) {
   var str = client + '-' + server + '-' + sessionDigestKey;
-  str = str.replace(/\./g, 'a').replace(/:/g, 'b')
+  str = str.replace(/\./g, 'a').replace(/:/g, 'b');
   return Math.abs(checksum.str(str));
-}
+};
 
 // Return [client,server] if query is valid, or false if not.
 var validateQuery = function (query) {
@@ -33,7 +33,7 @@ var validateQuery = function (query) {
   } else {
     return false;
   }
-}
+};
 
 var matchServer = function (client) {
   var server = '8.8.8.8'; //todo: roundrobin.
@@ -61,10 +61,34 @@ server.on('request', function (req, resp) {
       resp.send();
       return;
     // Initial query
+    } else if (query === "ns1." + rootTLD || query === "ns2." + rootTLD) {
+      resp.answer.push(dns.A({
+        name: 'ns1.' + rootTLD,
+        address: server,
+        ttl: 5
+      }));
+      resp.answer.push(dns.A({
+        name: 'ns2.' + rootTLD,
+        address: server,
+        ttl: 5
+      }));
+      resp.authority.push(dns.SOA({
+        name: delegee,
+        primary: 'ns1' + delegee,
+        admin: 'measurement.' + rootTLD,
+        serial: new Date().valueOf(),
+        refresh: 5,
+        retry: 5,
+        expiration: 5,
+        minimum: 5,
+        ttl: 5
+      }));
+      resp.send();
+      return;
     } else if (query === rootTLD) {
       // TODO: record attempt at connectivity
-      var server = matchServer(addr);
-      var delegee = createPrefix(addr, server) + '.' + rootTLD;
+      var resolver = matchServer(addr);
+      var delegee = createPrefix(addr, resolver) + '.' + rootTLD;
       resp.header.ra = false;
       resp.answer.push(dns.CNAME({
         name: query,
@@ -84,7 +108,7 @@ server.on('request', function (req, resp) {
       }));
       resp.additional.push(dns.A({
         name: 'ns1.' + delegee,
-        address: server,
+        address: resolver,
         ttl: 5
       }));
       resp.send();
