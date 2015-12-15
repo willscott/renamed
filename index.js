@@ -145,10 +145,20 @@ server.on('request', function (req, resp) {
         resp.authority.push(dns.NS({
           name: query,
           ttl: 5,
-          data: 'ns1.' + query
+          data: 'ns1.' + prefix + '.' + rootTLD
+        }));
+        resp.authority.push(dns.NS({
+          name: query,
+          ttl: 5,
+          data: 'ns2.' + prefix + '.' + rootTLD
         }));
         resp.additional.push(dns.A({
-          name: 'ns1.' + query,
+          name: 'ns1.' + prefix + '.' + rootTLD,
+          address: parts[1],
+          ttl: 5
+        }));
+        resp.additional.push(dns.A({
+          name: 'ns2.' + prefix + '.' + rootTLD,
           address: parts[1],
           ttl: 5
         }));
