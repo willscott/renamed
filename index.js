@@ -4,11 +4,12 @@ var winston = require('winston');
 winston.cli();
 
 if (process.argv.length < 4) {
-  console.log('Usage: renamed <domain name> <public IP of server>');
+  console.log('Usage: renamed <domain name> <public IP of server> <alt IP of server>');
   process.exit();
 }
 var rootTLD = process.argv[2].toLowerCase();
 var myip = process.argv[3];
+var altip = process.argv[4];
 var server = dns.createServer();
 var sessionDigestKey = require('uuid').v4();
 
@@ -63,12 +64,39 @@ var fillCache = function (prefix, server, cb) {
 };
 
 server.on('request', function (req, resp) {
-  if (req.question.length > 0 && req.question[0].type != 1) {
-    winston.info(addr + '[' + req.question[0].type + '] ' + req.question[0].name);
+  if (req.question.length === 0) {
+    return;
   }
-  if (req.question.length > 0 && req.question[0].type == 1) {
-    var query = req.question[0].name.toLowerCase();
-    var addr = req.address.address;
+  var query = req.question[0].name.toLowerCase();
+  var addr = req.address.address;
+
+  if (req.question[0].type != 1 && req.question[0].type != 2) {
+    winston.info(addr + '[' + req.question[0].type + '] ' + query);
+  } else if (req.question[0].type == 2) { // NS request
+    winston.info(addr + '[NS] ' + query);
+    resp.authority.push(dns.NS({
+      name: rootTLD,
+      data: 'ns1.' + rootTLD,
+      ttl: 5
+    }));
+    resp.authority.push(dns.NS({
+      name: rootTLD,
+      data: 'ns2.' + rootTLD,
+      ttl: 5
+    }));
+    resp.additional.push(dns.A({
+      name: 'ns1.' + rootTLD,
+      address: myip,
+      ttl: 5
+    }));
+    resp.additional.push(dns.A({
+      name: 'ns2.' + rootTLD,
+      address: altip,
+      ttl: 5
+    }));
+    resp.send();
+    return;
+  } else if (req.question[0].type == 1) { // A request
     winston.info(addr + '[A] ' + query);
     // Failures
     if (query.indexOf(rootTLD) === -1) {
