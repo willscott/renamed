@@ -168,6 +168,6 @@ server.on('error', function (err) {
   console.warn(err.stack);
 });
 
-server.serve(53);
+server.serve(53, myip);
 winston.info('Running for', rootTLD, myip);
 winston.info('Session Key is', sessionDigestKey);
