@@ -143,12 +143,12 @@ server.on('request', function (req, resp) {
       // Queries for the cname are owned by the appropriate delegee.
       if (addr == parts[0]) {
         resp.authority.push(dns.NS({
-          name: query,
+          name: prefix + '.' + rootTLD,
           ttl: 5,
           data: 'ns1.' + prefix + '.' + rootTLD
         }));
         resp.authority.push(dns.NS({
-          name: query,
+          name: prefix + '.' + rootTLD,
           ttl: 5,
           data: 'ns2.' + prefix + '.' + rootTLD
         }));
@@ -167,6 +167,7 @@ server.on('request', function (req, resp) {
       } else {
         // TODO: Log success of client-server. query.
         // TODO: See if it's been made recently by same server, indicating response dropped.
+        winston.info('Induced Connectivity between ' + parts[0] + ' and ' + parts[1] + ' [exposed as ' + addr + ']');
       /*
       resp.answer.push(dns.CNAME({
         name: query,
