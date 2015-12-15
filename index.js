@@ -46,6 +46,22 @@ var createPrefix = function (client, server) {
   return prefix.replace(/\./g, 'a').replace(/:/g, 'b');
 };
 
+// make a query to populate a server cache, so it can answer non-recursively
+// despite not being authoritative
+var fillCache = function (prefix, server, cb) {
+  var question = dns.Question({
+    name: prefix,
+    type: 'A'
+  });
+  var req = dns.Request({
+    question: question,
+    server: { address: server, port: 53, type: 'udp'},
+    timeout: 1000
+  });
+  req.on('end', cb);
+  req.send();
+};
+
 server.on('request', function (req, resp) {
   if (req.question.length > 0 && req.question[0].type == 1) {
     var query = req.question[0].name.toLowerCase();
@@ -74,7 +90,7 @@ server.on('request', function (req, resp) {
       }));
       resp.authority.push(dns.SOA({
         name: rootTLD,
-        primary: 'ns1' + rootTLD,
+        primary: 'ns1.' + rootTLD,
         admin: 'measurement.' + rootTLD,
         serial: new Date().valueOf(),
         refresh: 5,
@@ -110,7 +126,14 @@ server.on('request', function (req, resp) {
         address: resolver,
         ttl: 5
       }));
-      resp.send();
+      resp.additional.push(dns.A({
+        name: 'ns2.' + delegee,
+        address: resolver,
+        ttl: 5
+      }));
+      fillCache('precache.' + delegee, resolver, function() {
+        resp.send();
+      });
       return;
     }
 
@@ -122,6 +145,9 @@ server.on('request', function (req, resp) {
       host = prefix.split('.');
       prefix = host[1];
       host = host[0];
+    } else if (prefix.indexOf('success-') === 0) {
+      host = 'success';
+      prefix = prefix.substr(8);
     }
     var parts = validateQuery(prefix);
     if (parts === false) {
@@ -138,7 +164,42 @@ server.on('request', function (req, resp) {
         address: parts[1],
         ttl: 5
       }));
+      resp.authority.push(dns.SOA({
+        name: prefix,
+        primary: 'ns1.' + prefix + '.' + rootTLD,
+        admin: 'measurement.' + rootTLD,
+        serial: new Date().valueOf(),
+        refresh: 5,
+        retry: 5,
+        expiration: 5,
+        minimum: 5,
+        ttl: 5
+      }));
       resp.send();
+      return;
+    } else if (host === 'precache') {
+      // "poison" the cache of the authoritative resolver.
+      resp.answer.push(dns.A({
+        name: query,
+        address: myip,
+        ttl: 5
+      }));
+      resp.additional.push(dns.CNAME({
+        name: "resolve." + prefix + '.' + rootTLD,
+        ttl: 5,
+        data: "success-" + prefix + '.' + rootTLD
+      }));
+      resp.send();
+      return;
+    } else if (host === 'success') {
+      winston.info('Induced Connectivity between ' + parts[0] + ' and ' + parts[1] + ' via cache poisoning [seen by ' + addr + ']');
+      resp.answer.push(dns.A({
+        name: query,
+        address: addr,
+        ttl: 5
+      }));
+      resp.send();
+      return;
     } else {
       // Queries for the cname are owned by the appropriate delegee.
       if (addr == parts[0]) {
