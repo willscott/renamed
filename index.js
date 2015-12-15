@@ -70,10 +70,10 @@ server.on('request', function (req, resp) {
   var query = req.question[0].name.toLowerCase();
   var addr = req.address.address;
 
-  if (req.question[0].type != 1 && req.question[0].type != 2) {
-    winston.info(addr + '[' + req.question[0].type + '] ' + query);
+  if (req.question[0].type != 1 && req.question[0].type != 2 && req.question[0].type != 255) {
+    winston.info(addr + ' [' + req.question[0].type + '] ' + query);
   } else if (req.question[0].type == 2) { // NS request
-    winston.info(addr + '[NS] ' + query);
+    winston.info(addr + ' [NS] ' + query);
     resp.authority.push(dns.NS({
       name: rootTLD,
       data: 'ns1.' + rootTLD,
@@ -96,8 +96,9 @@ server.on('request', function (req, resp) {
     }));
     resp.send();
     return;
-  } else if (req.question[0].type == 1) { // A request
-    winston.info(addr + '[A] ' + query);
+  } else if (req.question[0].type == 1 || req.question[0].type == 255) { // A/ANY request
+    var lookuptype = (req.question[0].type == 255) ? 'ANY' : 'A';
+    winston.info(addr + ' [' + lookuptype + '] ' + query);
     // Failures
     if (query.indexOf(rootTLD) === -1) {
       resp.answer.push(dns.A({
