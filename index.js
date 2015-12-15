@@ -106,6 +106,11 @@ server.on('request', function (req, resp) {
         minimum: 5,
         ttl: 5
       }));
+      resp.authority.push(dns.NS({
+        name: delegee,
+        data: 'ns1.' + delegee,
+        ttl: 5
+      }));
       resp.additional.push(dns.A({
         name: 'ns1.' + delegee,
         address: resolver,
