@@ -93,22 +93,16 @@ server.on('request', function (req, resp) {
       resp.answer.push(dns.CNAME({
         name: query,
         ttl: 5,
-        data: delegee
-      }));
-      resp.authority.push(dns.SOA({
-        name: delegee,
-        primary: 'ns1' + delegee,
-        admin: 'measurement.' + rootTLD,
-        serial: new Date().valueOf(),
-        refresh: 5,
-        retry: 5,
-        expiration: 5,
-        minimum: 5,
-        ttl: 5
+        data: 'resolve.' + delegee
       }));
       resp.authority.push(dns.NS({
         name: delegee,
         data: 'ns1.' + delegee,
+        ttl: 5
+      }));
+      resp.authority.push(dns.NS({
+        name: delegee,
+        data: 'ns2.' + delegee,
         ttl: 5
       }));
       resp.additional.push(dns.A({
@@ -123,6 +117,12 @@ server.on('request', function (req, resp) {
     // Successful indicaton of connectivity
     var prefix = query.split(rootTLD)[0];
     prefix = prefix.substr(0, prefix.length - 1);
+    var host = '';
+    if (prefix.indexOf('.') > 0) {
+      host = prefix.split('.');
+      prefix = host[1];
+      host = host[0];
+    }
     var parts = validateQuery(prefix);
     if (parts === false) {
       resp.answer.push(dns.A({
@@ -132,6 +132,13 @@ server.on('request', function (req, resp) {
       }));
       resp.send();
       return;
+    } else if (host === 'ns1' || host === 'ns2') {
+      resp.answer.push(dns.A({
+        name: query,
+        address: parts[1],
+        ttl: 5
+      }));
+      resp.send();
     } else {
       // Queries for the cname are owned by the appropriate delegee.
       if (addr == parts[0]) {
