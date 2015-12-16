@@ -1,6 +1,7 @@
 var checksum = require('crc-32');
 var dns = require('native-dns');
 var winston = require('winston');
+winston.level = 'debug';
 winston.cli();
 
 if (process.argv.length < 4) {
@@ -234,6 +235,7 @@ var handler = function (req, resp) {
         address: myip,
         ttl: 5
       }));
+      setDelegatedAuthority(resp);
       resp.additional.push(dns.CNAME({
         name: "resolve." + prefix + '.' + rootTLD,
         ttl: 20,
