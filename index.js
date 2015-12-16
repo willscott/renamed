@@ -83,6 +83,7 @@ var setDelegatedAuthority = function(prefix, resp) {
     data: 'ns2.' + delegatedCN,
     ttl: 5
   }));
+  /*
   resp.authority.push(dns.SOA({
     name: delegatedCN,
     primary: 'ns1.' + delegatedCN,
@@ -94,6 +95,7 @@ var setDelegatedAuthority = function(prefix, resp) {
     minimum: 5,
     ttl: 5
   }));
+  */
 };
 
 
