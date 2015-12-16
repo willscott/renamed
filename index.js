@@ -71,20 +71,21 @@ var setRootAuthority = function(resp, noA) {
   }));
 };
 
-var setDelegatedAuthority = function(delegee, resp) {
+var setDelegatedAuthority = function(prefix, resp) {
+  var delegatedCN = prefix + '.' + rootTLD;
   resp.authority.push(dns.NS({
-    name: delegee,
-    data: 'ns1.' + delegee,
+    name: delegatedCN,
+    data: 'ns1.' + delegatedCN,
     ttl: 5
   }));
   resp.authority.push(dns.NS({
-    name: delegee,
-    data: 'ns2.' + delgee,
+    name: delegatedCN,
+    data: 'ns2.' + delegatedCN,
     ttl: 5
   }));
   resp.authority.push(dns.SOA({
-    name: delegee,
-    primary: 'ns1.' + delegee,
+    name: delegatedCN,
+    primary: 'ns1.' + delegatedCN,
     admin: 'measurement.' + rootTLD,
     serial: new Date().valueOf(),
     refresh: 5,
