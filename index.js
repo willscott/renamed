@@ -151,12 +151,14 @@ var handler = function (req, resp) {
         address: myip,
         ttl: 5
       }));
+      winston.debug('Responding with local A record to unexpected query.');
       resp.send();
       return;
     // Initial query
     } else if (query === "ns1." + rootTLD || query === "ns2." + rootTLD) {
       setRootAuthority(resp);
       resp.send();
+      winston.debug('providing glonass authority records.');
       return;
     } else if (query === rootTLD) {
       // TODO: record attempt at connectivity
@@ -181,6 +183,7 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       fillCache('precache.' + delegatedCN, resolvers[0], function() {
+        winston.debug('Providing CNAME + NS for child.');
         resp.send();
       });
       return;
@@ -206,6 +209,7 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       resp.send();
+      winston.debug('Providing A record on unparsable prefix.');
       return;
     } else if (host === 'ns1' || host === 'ns2') {
       setDelegatedAuthority(prefix, resp);
@@ -221,6 +225,7 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       resp.send();
+      winston.debug('responding with delegated NS');
       return;
     } else if (host === 'precache') {
       // "poison" the cache of the authoritative resolver.
@@ -235,6 +240,7 @@ var handler = function (req, resp) {
         data: "success-" + prefix + '.' + rootTLD
       }));
       resp.send();
+      winston.debug('responding with precache CNAME hint');
       return;
     } else if (host === 'success') {
       winston.info('Induced Connectivity between ' + parts[0] + ' and ' + parts[1] + ' via cache poisoning [seen by ' + addr + ']');
@@ -261,6 +267,7 @@ var handler = function (req, resp) {
           ttl: 5
         }));
         resp.send();
+        winston.debug('Responding with delegate NS info for raw prefix request.');
         return;
       } else {
         // TODO: Log success of client-server. query.
