@@ -35,8 +35,69 @@ var validateQuery = function (query) {
   }
 };
 
+var setRootAuthority = function(resp, noA) {
+  resp.authority.push(dns.NS({
+    name: rootTLD,
+    data: 'ns1.' + rootTLD,
+    ttl: 5
+  }));
+  resp.authority.push(dns.NS({
+    name: rootTLD,
+    data: 'ns2.' + rootTLD,
+    ttl: 5
+  }));
+  if (!noA) {
+    resp.answer.push(dns.A({
+      name: 'ns1.' + rootTLD,
+      address: myip,
+      ttl: 5
+    }));
+    resp.answer.push(dns.A({
+      name: 'ns2.' + rootTLD,
+      address: altip,
+      ttl: 5
+    }));
+  }
+  resp.authority.push(dns.SOA({
+    name: rootTLD,
+    primary: 'ns1.' + rootTLD,
+    admin: 'measurement.' + rootTLD,
+    serial: new Date().valueOf(),
+    refresh: 5,
+    retry: 5,
+    expiration: 5,
+    minimum: 5,
+    ttl: 5
+  }));
+};
+
+var setDelegatedAuthority = function(delegee, resp) {
+  resp.authority.push(dns.NS({
+    name: delegee,
+    data: 'ns1.' + delegee,
+    ttl: 5
+  }));
+  resp.authority.push(dns.NS({
+    name: delegee,
+    data: 'ns2.' + delgee,
+    ttl: 5
+  }));
+  resp.authority.push(dns.SOA({
+    name: delegee,
+    primary: 'ns1.' + delegee,
+    admin: 'measurement.' + rootTLD,
+    serial: new Date().valueOf(),
+    refresh: 5,
+    retry: 5,
+    expiration: 5,
+    minimum: 5,
+    ttl: 5
+  }));
+};
+
+
 var matchServer = function (client) {
-  var server = '208.67.220.220'; //todo: roundrobin.
+  var server = ['208.67.220.220', '208.67.222.222']; //todo: roundrobin.
   return server;
 };
 
@@ -68,42 +129,13 @@ var handler = function (req, resp) {
   }
   var query = req.question[0].name.toLowerCase();
   var addr = req.address.address;
+  var prefix, resolvers;
 
   if (req.question[0].type != 1 && req.question[0].type != 2 && req.question[0].type != 255) {
     winston.info(addr + ' [' + req.question[0].type + '] ' + query);
   } else if (req.question[0].type == 2) { // NS request
     winston.info(addr + ' [NS] ' + query);
-    resp.authority.push(dns.NS({
-      name: rootTLD,
-      data: 'ns1.' + rootTLD,
-      ttl: 5
-    }));
-    resp.authority.push(dns.NS({
-      name: rootTLD,
-      data: 'ns2.' + rootTLD,
-      ttl: 5
-    }));
-    resp.authority.push(dns.SOA({
-      name: rootTLD,
-      primary: 'ns1.' + rootTLD,
-      admin: 'measurement.' + rootTLD,
-      serial: new Date().valueOf(),
-      refresh: 5,
-      retry: 5,
-      expiration: 5,
-      minimum: 5,
-      ttl: 5
-    }));
-    resp.additional.push(dns.A({
-      name: 'ns1.' + rootTLD,
-      address: myip,
-      ttl: 5
-    }));
-    resp.additional.push(dns.A({
-      name: 'ns2.' + rootTLD,
-      address: altip,
-      ttl: 5
-    }));
+    setRootAuthority(resp);
     resp.send();
     return;
   } else if (req.question[0].type == 1 || req.question[0].type == 255) { // A/ANY request
@@ -120,47 +152,39 @@ var handler = function (req, resp) {
       return;
     // Initial query
     } else if (query === "ns1." + rootTLD || query === "ns2." + rootTLD) {
-      resp.answer.push(dns.A({
-        name: 'ns1.' + rootTLD,
-        address: myip,
-        ttl: 5
-      }));
-      resp.answer.push(dns.A({
-        name: 'ns2.' + rootTLD,
-        address: altip,
-        ttl: 5
-      }));
-      resp.authority.push(dns.SOA({
-        name: rootTLD,
-        primary: 'ns1.' + rootTLD,
-        admin: 'measurement.' + rootTLD,
-        serial: new Date().valueOf(),
-        refresh: 5,
-        retry: 5,
-        expiration: 5,
-        minimum: 5,
-        ttl: 5
-      }));
+      setRootAuthority(resp);
       resp.send();
       return;
     } else if (query === rootTLD) {
       // TODO: record attempt at connectivity
-      var resolver = matchServer(addr);
-      var delegee = createPrefix(addr, resolver) + '.' + rootTLD;
+      resolvers = matchServer(addr);
+      prefix = createPrefix(addr, resolvers[0]);
+      var delegatedCN = prefix + '.' + rootTLD;
       resp.header.ra = false;
       resp.answer.push(dns.CNAME({
         name: query,
         ttl: 5,
-        data: 'resolve.' + delegee
+        data: 'resolve.' + delegatedCN
       }));
-      fillCache('precache.' + delegee, resolver, function() {
+      setDelegatedAuthority(prefix, resp);
+      resp.additional.push(dns.A({
+        name: 'ns1.' + delegatedCN,
+        address: resolvers[0],
+        ttl: 5
+      }));
+      resp.additional.push(dns.A({
+        name: 'ns2.' + delegatedCN,
+        address: resolvers[1],
+        ttl: 5
+      }));
+      fillCache('precache.' + delegatedCN, resolvers[0], function() {
         resp.send();
       });
       return;
     }
 
     // Successful indicaton of connectivity
-    var prefix = query.split(rootTLD)[0];
+    prefix = query.split(rootTLD)[0];
     prefix = prefix.substr(0, prefix.length - 1);
     var host = '';
     if (prefix.indexOf('.') > 0) {
@@ -181,30 +205,16 @@ var handler = function (req, resp) {
       resp.send();
       return;
     } else if (host === 'ns1' || host === 'ns2') {
-      resp.authority.push(dns.NS({
-        name: prefix + '.' + rootTLD,
-        data: 'ns1.' + prefix + '.' + rootTLD,
-        ttl: 5
-      }));
-      resp.authority.push(dns.NS({
-        name: prefix + '.' + rootTLD,
-        data: 'ns2.' + prefix + '.' + rootTLD,
+      setDelegatedAuthority(prefix, resp);
+      resolvers = matchServer(parts[0]);
+      resp.answer.push(dns.A({
+        name: 'ns1.' + prefix + '.' + rootTLD,
+        address: resolvers[0],
         ttl: 5
       }));
       resp.answer.push(dns.A({
-        name: query,
-        address: parts[1],
-        ttl: 5
-      }));
-      resp.authority.push(dns.SOA({
-        name: prefix,
-        primary: 'ns1.' + prefix + '.' + rootTLD,
-        admin: 'measurement.' + rootTLD,
-        serial: new Date().valueOf(),
-        refresh: 5,
-        retry: 5,
-        expiration: 5,
-        minimum: 5,
+        name: 'ns2.' + prefix + '.' + rootTLD,
+        address: resolvers[1],
         ttl: 5
       }));
       resp.send();
@@ -235,24 +245,16 @@ var handler = function (req, resp) {
     } else {
       // Queries for the cname are owned by the appropriate delegee.
       if (addr == parts[0]) {
-        resp.authority.push(dns.NS({
-          name: prefix + '.' + rootTLD,
-          ttl: 5,
-          data: 'ns1.' + prefix + '.' + rootTLD
-        }));
-        resp.authority.push(dns.NS({
-          name: prefix + '.' + rootTLD,
-          ttl: 5,
-          data: 'ns2.' + prefix + '.' + rootTLD
-        }));
+        setDelegatedAuthority(prefix, resp);
+        resolvers = matchServer(parts[0]);
         resp.additional.push(dns.A({
           name: 'ns1.' + prefix + '.' + rootTLD,
-          address: parts[1],
+          address: resolvers[0],
           ttl: 5
         }));
         resp.additional.push(dns.A({
           name: 'ns2.' + prefix + '.' + rootTLD,
-          address: parts[1],
+          address: resolvers[1],
           ttl: 5
         }));
         resp.send();
