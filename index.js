@@ -235,7 +235,7 @@ var handler = function (req, resp) {
         address: myip,
         ttl: 5
       }));
-      setDelegatedAuthority(resp);
+      setDelegatedAuthority(prefix, resp);
       resp.additional.push(dns.CNAME({
         name: "resolve." + prefix + '.' + rootTLD,
         ttl: 20,
