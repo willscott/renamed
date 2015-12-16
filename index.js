@@ -84,6 +84,17 @@ server.on('request', function (req, resp) {
       data: 'ns2.' + rootTLD,
       ttl: 5
     }));
+    resp.authority.push(dns.SOA({
+      name: rootTLD,
+      primary: 'ns1.' + rootTLD,
+      admin: 'measurement.' + rootTLD,
+      serial: new Date().valueOf(),
+      refresh: 5,
+      retry: 5,
+      expiration: 5,
+      minimum: 5,
+      ttl: 5
+    }));
     resp.additional.push(dns.A({
       name: 'ns1.' + rootTLD,
       address: myip,
@@ -117,7 +128,7 @@ server.on('request', function (req, resp) {
       }));
       resp.answer.push(dns.A({
         name: 'ns2.' + rootTLD,
-        address: myip,
+        address: altip,
         ttl: 5
       }));
       resp.authority.push(dns.SOA({
@@ -142,26 +153,6 @@ server.on('request', function (req, resp) {
         name: query,
         ttl: 5,
         data: 'resolve.' + delegee
-      }));
-      resp.authority.push(dns.NS({
-        name: delegee,
-        data: 'ns1.' + delegee,
-        ttl: 5
-      }));
-      resp.authority.push(dns.NS({
-        name: delegee,
-        data: 'ns2.' + delegee,
-        ttl: 5
-      }));
-      resp.additional.push(dns.A({
-        name: 'ns1.' + delegee,
-        address: resolver,
-        ttl: 5
-      }));
-      resp.additional.push(dns.A({
-        name: 'ns2.' + delegee,
-        address: resolver,
-        ttl: 5
       }));
       fillCache('precache.' + delegee, resolver, function() {
         resp.send();
@@ -191,6 +182,16 @@ server.on('request', function (req, resp) {
       resp.send();
       return;
     } else if (host === 'ns1' || host === 'ns2') {
+      resp.authority.push(dns.NS({
+        name: prefix + '.' + rootTLD,
+        data: 'ns1.' + prefix + '.' + rootTLD,
+        ttl: 5
+      }));
+      resp.authority.push(dns.NS({
+        name: prefix + '.' + rootTLD,
+        data: 'ns2.' + prefix + '.' + rootTLD,
+        ttl: 5
+      }));
       resp.answer.push(dns.A({
         name: query,
         address: parts[1],
@@ -218,7 +219,7 @@ server.on('request', function (req, resp) {
       }));
       resp.additional.push(dns.CNAME({
         name: "resolve." + prefix + '.' + rootTLD,
-        ttl: 5,
+        ttl: 20,
         data: "success-" + prefix + '.' + rootTLD
       }));
       resp.send();
