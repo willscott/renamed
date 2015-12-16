@@ -10,7 +10,6 @@ if (process.argv.length < 4) {
 var rootTLD = process.argv[2].toLowerCase();
 var myip = process.argv[3];
 var altip = process.argv[4];
-var server = dns.createServer();
 var sessionDigestKey = require('uuid').v4();
 
 var createChecksum = function (client, server) {
@@ -63,7 +62,7 @@ var fillCache = function (prefix, server, cb) {
   req.send();
 };
 
-server.on('request', function (req, resp) {
+var handler = function (req, resp) {
   if (req.question.length === 0) {
     return;
   }
@@ -279,12 +278,21 @@ server.on('request', function (req, resp) {
       }
     }
   }
-});
+};
 
-server.on('error', function (err) {
+var server1 = dns.createServer();
+server1.on('request', handler);
+server1.on('error', function (err) {
+  console.warn(err.stack);
+});
+var server2 = dns.createServer();
+server2.on('request', handler);
+server2.on('error', function (err) {
   console.warn(err.stack);
 });
 
-server.serve(53, myip);
-winston.info('Running for', rootTLD, myip);
+
+server1.serve(53, myip);
+server2.serve(53, altip);
+winston.info('Running for', rootTLD, myip, altip);
 winston.info('Session Key is', sessionDigestKey);
