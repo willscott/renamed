@@ -134,15 +134,15 @@ var handler = function (req, resp) {
   var addr = req.address.address;
   var prefix, resolvers;
 
-  if (req.question[0].type != 1 && req.question[0].type != 2 && req.question[0].type != 255) {
+  if (req.question[0].type != 1 && req.question[0].type != 2 && req.question[0].type != 28 && req.question[0].type != 255) {
     winston.info(addr + ' [' + req.question[0].type + '] ' + query);
   } else if (req.question[0].type == 2) { // NS request
     winston.info(addr + ' [NS] ' + query);
     setRootAuthority(resp);
     resp.send();
     return;
-  } else if (req.question[0].type == 1 || req.question[0].type == 255) { // A/ANY request
-    var lookuptype = (req.question[0].type == 255) ? 'ANY' : 'A';
+  } else if (req.question[0].type == 1 || req.question[0].type === 28 || req.question[0].type == 255) { // A/ANY request
+    var lookuptype = (req.question[0].type == 255) ? 'ANY' : (req.question[0].type == 28) ? 'AAAA' : 'A';
     winston.info(addr + ' [' + lookuptype + '] ' + query);
     // Failures
     if (query.indexOf(rootTLD) === -1) {
