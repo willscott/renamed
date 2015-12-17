@@ -167,6 +167,11 @@ var handler = function (req, resp) {
       resolvers = matchServer(addr);
       prefix = createPrefix(addr, resolvers[0]);
       var delegatedCN = prefix + '.' + rootTLD;
+      if (prefilling[delegatedCN]) {
+        // Time out until prefilling complete.
+        winston.debug('Ignoring subsequent origin request while waiting for pre-fill.');
+        return;
+      }
       resp.header.ra = false;
       resp.answer.push(dns.CNAME({
         name: query,
@@ -187,9 +192,11 @@ var handler = function (req, resp) {
       prefilling[delegatedCN] = true;
       winston.debug('Making prefill request to ' + resolvers[0]);
       fillCache('resolve.' + delegatedCN, resolvers[0], function() {
-        delete prefilling[delegatedCN];
-        winston.debug('Delegating query to recursive resolver.');
-        resp.send();
+        setTimeout(function (resp) {
+          delete prefilling[delegatedCN];
+          winston.debug('Delegating query to recursive resolver.');
+          resp.send();
+        }.bind({}, resp), 1000);
       });
       return;
     }
@@ -237,9 +244,10 @@ var handler = function (req, resp) {
         // in induced recursive resolution. follow cname redirection with servfail.
         resp.header.rcode = 2; //servfail
         resp.send();
+        winston.debug('failure on to-early success lookup.');
         return;
       }
-      winston.info('Induced Connectivity between ' + parts[0] + ' and ' + parts[1] + ' via cache poisoning [seen by ' + addr + ']');
+      winston.info(addr + ' asked for result known to ' + parts[1] + '! [initiated by ' + parts[0] + ']');
       resp.answer.push(dns.A({
         name: query,
         address: addr,
@@ -257,8 +265,13 @@ var handler = function (req, resp) {
           ttl: 20,
           data: "success-" + prefix + '.' + rootTLD
         }));
+        resp.answer.push(dns.A({
+          name: "success-" + prefix + '.' + rootTLD,
+          ttl: 1,
+          address: myip
+        }));
         resp.send();
-        winston.debug('CNAME poisoing.');
+        winston.debug('Prefill response with cname+a combo.');
         return;
       }
       if (addr == parts[0]) {
