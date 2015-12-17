@@ -242,7 +242,11 @@ var handler = function (req, resp) {
     } else if (host === 'success') {
       if (prefilling[prefix + '.' + rootTLD]) {
         // in induced recursive resolution. follow cname redirection with servfail.
-        resp.header.rcode = 2; //servfail
+        resp.answer.push(dns.A({
+          name: query,
+          ttl: 1,
+          address: myip
+        }));
         resp.send();
         winston.debug('failure on to-early success lookup.');
         return;
@@ -265,7 +269,7 @@ var handler = function (req, resp) {
           ttl: 20,
           data: "success-" + prefix + '.' + rootTLD
         }));
-        resp.answer.push(dns.A({
+        resp.additional.push(dns.A({
           name: "success-" + prefix + '.' + rootTLD,
           ttl: 1,
           address: myip
