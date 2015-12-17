@@ -185,8 +185,9 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       prefilling[delegatedCN] = true;
+      winston.debug('Making prefill request to ' + resolvers[0]);
       fillCache('resolve.' + delegatedCN, resolvers[0], function() {
-        prefilling[prefilling] = false;
+        delete prefilling[delegatedCN];
         winston.debug('Delegating query to recursive resolver.');
         resp.send();
       });
@@ -236,6 +237,7 @@ var handler = function (req, resp) {
         // in induced recursive resolution. follow cname redirection with servfail.
         resp.header.rcode = 2; //servfail
         resp.send();
+        return;
       }
       winston.info('Induced Connectivity between ' + parts[0] + ' and ' + parts[1] + ' via cache poisoning [seen by ' + addr + ']');
       resp.answer.push(dns.A({
