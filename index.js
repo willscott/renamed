@@ -232,6 +232,11 @@ var handler = function (req, resp) {
       winston.debug('Delegated NS request.');
       return;
     } else if (host === 'success') {
+      if (prefilling[prefix + '.' + rootTLD]) {
+        // in induced recursive resolution. follow cname redirection with servfail.
+        resp.header.rcode = 2; //servfail
+        resp.send();
+      }
       winston.info('Induced Connectivity between ' + parts[0] + ' and ' + parts[1] + ' via cache poisoning [seen by ' + addr + ']');
       resp.answer.push(dns.A({
         name: query,
