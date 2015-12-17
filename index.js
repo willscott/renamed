@@ -12,6 +12,7 @@ var rootTLD = process.argv[2].toLowerCase();
 var myip = process.argv[3];
 var altip = process.argv[4];
 var sessionDigestKey = require('uuid').v4();
+var prefilling = {};
 
 var createChecksum = function (client, server) {
   var str = client + '-' + server + '-' + sessionDigestKey;
@@ -183,8 +184,10 @@ var handler = function (req, resp) {
         address: resolvers[1],
         ttl: 5
       }));
-      fillCache('precache.' + delegatedCN, resolvers[0], function() {
-        winston.debug('Providing CNAME + NS for child.');
+      prefilling[delegatedCN] = true;
+      fillCache('resolve.' + delegatedCN, resolvers[0], function() {
+        prefilling[prefilling] = false;
+        winston.debug('Delegating query to recursive resolver.');
         resp.send();
       });
       return;
@@ -210,7 +213,7 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       resp.send();
-      winston.debug('Providing A record on unparsable prefix.');
+      winston.debug('Self A record response to unexpected delegated prefix.');
       return;
     } else if (host === 'ns1' || host === 'ns2') {
       setDelegatedAuthority(prefix, resp);
@@ -226,23 +229,7 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       resp.send();
-      winston.debug('responding with delegated NS');
-      return;
-    } else if (host === 'precache') {
-      // "poison" the cache of the authoritative resolver.
-      resp.answer.push(dns.A({
-        name: query,
-        address: myip,
-        ttl: 5
-      }));
-      setDelegatedAuthority(prefix, resp);
-      resp.additional.push(dns.CNAME({
-        name: "resolve." + prefix + '.' + rootTLD,
-        ttl: 20,
-        data: "success-" + prefix + '.' + rootTLD
-      }));
-      resp.send();
-      winston.debug('responding with precache CNAME hint');
+      winston.debug('Delegated NS request.');
       return;
     } else if (host === 'success') {
       winston.info('Induced Connectivity between ' + parts[0] + ' and ' + parts[1] + ' via cache poisoning [seen by ' + addr + ']');
@@ -255,6 +242,18 @@ var handler = function (req, resp) {
       return;
     } else {
       // Queries for the cname are owned by the appropriate delegee.
+      if (prefilling[prefix + '.' + rootTLD]) {
+        // "poison" the cache of the authoritative resolver.
+        setDelegatedAuthority(prefix, resp);
+        resp.answer.push(dns.CNAME({
+          name: "resolve." + prefix + '.' + rootTLD,
+          ttl: 20,
+          data: "success-" + prefix + '.' + rootTLD
+        }));
+        resp.send();
+        winston.debug('CNAME poisoing.');
+        return;
+      }
       if (addr == parts[0]) {
         setDelegatedAuthority(prefix, resp);
         resolvers = matchServer(parts[0]);
