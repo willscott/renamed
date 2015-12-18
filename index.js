@@ -257,10 +257,10 @@ var handler = function (req, resp) {
         address: addr,
         ttl: 5
       }));
-      resp.additional.push(dns.TXT({
+      resp.additional.push(dns.A({
         name: query,
         ttl: 5,
-        data: 'Connectivity seen between ' + addr + ' and ' + parts[1]
+        address: parts[1]
       }));
       resp.send();
       return;
