@@ -248,7 +248,7 @@ var handler = function (req, resp) {
           address: myip
         }));
         resp.send();
-        winston.debug('Follow-up A record for induced');
+        winston.debug('Follow-up A record for induced (' + addr + ')');
         return;
       }
       winston.info(addr + ' asked for result known to ' + parts[1] + '! [initiated by ' + parts[0] + ']');
@@ -256,6 +256,11 @@ var handler = function (req, resp) {
         name: query,
         address: addr,
         ttl: 5
+      }));
+      resp.additional.push(dns.TXT({
+        name: query,
+        ttl: 5
+        data: 'Connectivity seen between ' + addr + ' and ' + parts[1]
       }));
       resp.send();
       return;
@@ -275,7 +280,7 @@ var handler = function (req, resp) {
           address: myip
         }));
         resp.send();
-        winston.debug('Prefill response with cname+a combo.');
+        winston.debug('Prefill response to (' + addr + ')');
         return;
       }
       if (addr == parts[0]) {
