@@ -86,24 +86,15 @@ var setDelegatedAuthority = function(prefix, resp) {
     data: 'ns2.' + delegatedCN,
     ttl: 5
   }));
-  /*
-  resp.authority.push(dns.SOA({
-    name: delegatedCN,
-    primary: 'ns1.' + delegatedCN,
-    admin: 'measurement.' + rootTLD,
-    serial: new Date().valueOf(),
-    refresh: 5,
-    retry: 5,
-    expiration: 5,
-    minimum: 5,
-    ttl: 5
-  }));
-  */
 };
 
 
 var matchServer = function (client) {
-  var server = ['208.67.220.220', '208.67.222.222']; //todo: roundrobin.
+  // Seem to need 2 servers for resolver to be happy. One can be a
+  // blackhole though.
+  var blackhole = '127.0.0.1';
+  
+  var server = ['208.67.220.220', '208.67.222.222'];
   return server;
 };
 
