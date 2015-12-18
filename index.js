@@ -244,11 +244,11 @@ var handler = function (req, resp) {
         // in induced recursive resolution. follow cname redirection with servfail.
         resp.answer.push(dns.A({
           name: query,
-          ttl: 1,
+          ttl: 5,
           address: myip
         }));
         resp.send();
-        winston.debug('failure on to-early success lookup.');
+        winston.debug('Follow-up A record for induced');
         return;
       }
       winston.info(addr + ' asked for result known to ' + parts[1] + '! [initiated by ' + parts[0] + ']');
