@@ -259,7 +259,7 @@ var handler = function (req, resp) {
       }));
       resp.additional.push(dns.TXT({
         name: query,
-        ttl: 5
+        ttl: 5,
         data: 'Connectivity seen between ' + addr + ' and ' + parts[1]
       }));
       resp.send();
