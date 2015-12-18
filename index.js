@@ -13,6 +13,7 @@ var myip = process.argv[3];
 var altip = process.argv[4];
 var sessionDigestKey = require('uuid').v4();
 var prefilling = {};
+var fullfilled = {};
 
 var createChecksum = function (client, server) {
   var str = client + '-' + server + '-' + sessionDigestKey;
@@ -148,13 +149,7 @@ var handler = function (req, resp) {
     winston.info(addr + ' [' + lookuptype + '] ' + query);
     // Failures
     if (query.indexOf(rootTLD) === -1) {
-      resp.answer.push(dns.A({
-        name: query,
-        address: myip,
-        ttl: 5
-      }));
-      winston.debug('Responding with local A record to unexpected query.');
-      resp.send();
+      winston.debug('Ignoring unexpected query.');
       return;
     // Initial query
     } else if (query === "ns1." + rootTLD || query === "ns2." + rootTLD) {
@@ -251,14 +246,32 @@ var handler = function (req, resp) {
         winston.debug('Follow-up A record for induced (' + addr + ')');
         return;
       }
-      winston.info(addr + ' asked for result known to ' + parts[1] + '! [initiated by ' + parts[0] + ']');
-      resp.answer.push(dns.A({
-        name: query,
-        address: addr,
-        ttl: 5
-      }));
-      resp.send();
-      return;
+      if (!fullfilled[prefix + '.' + rootTLD]) {
+        winston.info(addr + ' asked for result known to ' + parts[1] + '! [initiated by ' + parts[0] + ']');
+        fullfilled[prefix + '.' + rootTLD] = [addr, parts[1], parts[0]];
+        resp.answer.push(dns.A({
+          name: query,
+          address: addr,
+          ttl: 5
+        }));
+        resp.send();
+        return;
+      } else {
+        winston.info('followup for prefix seeded to ' + parts[1]);
+        var record = fullfilled[prefix + '.' + rootTLD];
+        resp.answer.push(dns.A({
+          name: query,
+          address: record[0],
+          ttl: 5
+        }));
+        resp.answer.push(dns.TXT({
+          name: query,
+          ttl: 5,
+          data: "This prefix was seeded to " + record[1] + " at initial request of " + record[2] + " and later was requested by " + record[0]
+        }));
+        resp.send();
+        return;
+      }
     } else {
       // Queries for the cname are owned by the appropriate delegee.
       if (prefilling[prefix + '.' + rootTLD]) {
