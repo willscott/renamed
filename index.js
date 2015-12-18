@@ -257,11 +257,6 @@ var handler = function (req, resp) {
         address: addr,
         ttl: 5
       }));
-      resp.additional.push(dns.A({
-        name: query,
-        ttl: 5,
-        address: parts[1]
-      }));
       resp.send();
       return;
     } else {
