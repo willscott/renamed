@@ -93,7 +93,7 @@ var matchServer = function (client) {
   // Seem to need 2 servers for resolver to be happy. One can be a
   // blackhole though.
   var blackhole = '127.0.0.1';
-  
+
   var server = ['208.67.220.220', '208.67.222.222'];
   return server;
 };
@@ -129,24 +129,24 @@ var handler = function (req, resp) {
   var prefix, resolvers;
 
   if (req.question[0].type != 1 && req.question[0].type != 2 && req.question[0].type != 28 && req.question[0].type != 255) {
-    winston.info(addr + ' [' + req.question[0].type + '] ' + query);
+    winston.debug(addr + ' IN ' + req.question[0].type + ' ' + query + ': Ignored');
   } else if (req.question[0].type == 2) { // NS request
-    winston.info(addr + ' [NS] ' + query);
+    winston.debug(addr + ' IN NS ' + query + ': Local Authority Proven');
     setRootAuthority(resp);
     resp.send();
     return;
   } else if (req.question[0].type == 1 || req.question[0].type === 28 || req.question[0].type == 255) { // A/ANY request
     var lookuptype = (req.question[0].type == 255) ? 'ANY' : (req.question[0].type == 28) ? 'AAAA' : 'A';
-    winston.info(addr + ' [' + lookuptype + '] ' + query);
+    var debugline = addr + ' IN ' + lookuptype + ' ' + query + ': ';
     // Failures
     if (query.indexOf(rootTLD) === -1) {
-      winston.debug('Ignoring unexpected query.');
+      winston.debug(debugline, 'Ignored');
       return;
     // Initial query
     } else if (query === "ns1." + rootTLD || query === "ns2." + rootTLD) {
       setRootAuthority(resp);
       resp.send();
-      winston.debug('providing glonass authority records.');
+      winston.debug(debugline, 'Local Authority Proven');
       return;
     } else if (query === rootTLD) {
       // TODO: record attempt at connectivity
@@ -155,7 +155,7 @@ var handler = function (req, resp) {
       var delegatedCN = prefix + '.' + rootTLD;
       if (prefilling[delegatedCN]) {
         // Time out until prefilling complete.
-        winston.debug('Ignoring subsequent origin request while waiting for pre-fill.');
+        winston.debug(debugline, 'Ignored - prefill in progress.');
         return;
       }
       resp.header.ra = false;
@@ -176,11 +176,11 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       prefilling[delegatedCN] = true;
-      winston.debug('Making prefill request to ' + resolvers[0]);
+      winston.debug('Initiating request for ' + delegatedCn + ' to ' + resolvers[0]);
       fillCache('resolve.' + delegatedCN, resolvers[0], function() {
         setTimeout(function (resp) {
           delete prefilling[delegatedCN];
-          winston.debug('Delegating query to recursive resolver.');
+          winston.debug(debugline, 'CNAME to ' + resolvers[0]);
           resp.send();
         }.bind({}, resp), 1000);
       });
@@ -207,7 +207,7 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       resp.send();
-      winston.debug('Self A record response to unexpected delegated prefix.');
+      winston.debug(debugline, 'Local A Record');
       return;
     } else if (host === 'ns1' || host === 'ns2') {
       setDelegatedAuthority(prefix, resp);
@@ -223,7 +223,7 @@ var handler = function (req, resp) {
         ttl: 5
       }));
       resp.send();
-      winston.debug('Delegated NS request.');
+      winston.debug(debugline, 'NS to ' + resolvers[0]);
       return;
     } else if (host === 'success') {
       if (prefilling[prefix + '.' + rootTLD]) {
@@ -234,11 +234,12 @@ var handler = function (req, resp) {
           address: myip
         }));
         resp.send();
-        winston.debug('Follow-up A record for induced (' + addr + ')');
+        winston.debug(debugline, '[prefill probe] Self A');
         return;
       }
       if (!fullfilled[prefix + '.' + rootTLD]) {
-        winston.info(addr + ' asked for result known to ' + parts[1] + '! [initiated by ' + parts[0] + ']');
+        winston.debug(debugline, 'First Successful Resolution');
+        winston.info('Success: ' + addr + ' resolved domain in cache of ' + parts[1] + '. [initiated by ' + parts[0] + ']');
         fullfilled[prefix + '.' + rootTLD] = [addr, parts[1], parts[0]];
         resp.answer.push(dns.A({
           name: query,
@@ -248,7 +249,7 @@ var handler = function (req, resp) {
         resp.send();
         return;
       } else {
-        winston.info('followup for prefix seeded to ' + parts[1]);
+        winston.debug(debugline, 'Subsqeuent Successful Resolution');
         var record = fullfilled[prefix + '.' + rootTLD];
         resp.answer.push(dns.A({
           name: query,
@@ -279,7 +280,7 @@ var handler = function (req, resp) {
           address: myip
         }));
         resp.send();
-        winston.debug('Prefill response to (' + addr + ')');
+        winston.debug(debugline, '[prefill probe] CNAME answer');
         return;
       }
       if (addr == parts[0]) {
@@ -296,19 +297,10 @@ var handler = function (req, resp) {
           ttl: 5
         }));
         resp.send();
-        winston.debug('Responding with delegate NS info for raw prefix request.');
+        winston.debug(debugline, 'Delegated NS');
         return;
       } else {
-        // TODO: Log success of client-server. query.
-        // TODO: See if it's been made recently by same server, indicating response dropped.
-        winston.info('Induced Connectivity between ' + parts[0] + ' and ' + parts[1] + ' [exposed as ' + addr + ']');
-      /*
-      resp.answer.push(dns.CNAME({
-        name: query,
-        ttl: 5,
-        data: 'www.google.com'
-      }));
-      */
+        winston.debug(debugline, 'Unexpected subdomain request. Returning A for safety.');
         resp.answer.push(dns.A({
           name: query,
           address: addr,
