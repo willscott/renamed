@@ -1,19 +1,21 @@
 var checksum = require('crc-32');
 var dns = require('native-dns');
 var winston = require('winston');
+
+var scheduler = require('./scheduler');
 winston.level = 'debug';
 winston.cli();
 
-if (process.argv.length < 4) {
-  console.log('Usage: renamed <domain name> <public IP of server> <alt IP of server>');
+if (process.argv.length < 5) {
+  console.log('Usage: renamed <domain name> <public IP of server> <alt IP of server> <serveripfile>');
   process.exit();
 }
 var rootTLD = process.argv[2].toLowerCase();
 var myip = process.argv[3];
 var altip = process.argv[4];
+scheduler.init(process.argv[5]);
 var sessionDigestKey = require('uuid').v4();
 var prefilling = {};
-var fullfilled = {};
 
 var createChecksum = function (client, server) {
   var str = client + '-' + server + '-' + sessionDigestKey;
@@ -93,8 +95,7 @@ var matchServer = function (client) {
   // Seem to need 2 servers for resolver to be happy. One can be a
   // blackhole though.
   var blackhole = '127.0.0.1';
-
-  var server = ['208.67.220.220', '208.67.222.222'];
+  var server = [scheduler.getServer(client), blackhole];
   return server;
 };
 
@@ -142,14 +143,13 @@ var handler = function (req, resp) {
     if (query.indexOf(rootTLD) === -1) {
       winston.debug(debugline, 'Ignored');
       return;
-    // Initial query
     } else if (query === "ns1." + rootTLD || query === "ns2." + rootTLD) {
       setRootAuthority(resp);
       resp.send();
       winston.debug(debugline, 'Local Authority Proven');
       return;
     } else if (query === rootTLD) {
-      // TODO: record attempt at connectivity
+      // Initial Query
       resolvers = matchServer(addr);
       prefix = createPrefix(addr, resolvers[0]);
       var delegatedCN = prefix + '.' + rootTLD;
@@ -158,6 +158,7 @@ var handler = function (req, resp) {
         winston.debug(debugline, 'Ignored - prefill in progress.');
         return;
       }
+      winston.info(debugline, 'Initial Request. Matched to ' + resolvers[0]);
       resp.header.ra = false;
       resp.answer.push(dns.CNAME({
         name: query,
@@ -237,10 +238,10 @@ var handler = function (req, resp) {
         winston.debug(debugline, '[prefill probe] Self A');
         return;
       }
-      if (!fullfilled[prefix + '.' + rootTLD]) {
+      if (!scheduler.isSuccess(parts[0], parts[1])) {
         winston.debug(debugline, 'First Successful Resolution');
         winston.info('Success: ' + addr + ' resolved domain in cache of ' + parts[1] + '. [initiated by ' + parts[0] + ']');
-        fullfilled[prefix + '.' + rootTLD] = [addr, parts[1], parts[0]];
+        scheduler.success(parts[0], parts[1], true);
         resp.answer.push(dns.A({
           name: query,
           address: addr,
@@ -250,16 +251,15 @@ var handler = function (req, resp) {
         return;
       } else {
         winston.debug(debugline, 'Subsqeuent Successful Resolution');
-        var record = fullfilled[prefix + '.' + rootTLD];
         resp.answer.push(dns.A({
           name: query,
-          address: record[0],
+          address: myip,
           ttl: 5
         }));
         resp.answer.push(dns.TXT({
           name: query,
           ttl: 5,
-          data: "This prefix was seeded to " + record[1] + " at initial request of " + record[2] + " and later was requested by " + record[0]
+          data: "This prefix was seeded to " + parts[1] + " at initial request of " + parts[0]
         }));
         resp.send();
         return;
