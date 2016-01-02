@@ -2,8 +2,8 @@ var fs = require('fs');
 var progress = require('progressbar-stream');
 var split = require('split');
 var ip = require('ip');
-var i2c-build = require('ip2country/src/build');
-var i2c-lookup = require('ip2country/src/lookup');
+var i2cbuild = require('ip2country/src/build');
+var i2clookup = require('ip2country/src/lookup');
 
 // Default parameter for how many entries can be in clientLists / clientSuccess
 // before those caches are culled.
@@ -71,14 +71,14 @@ var getServers = function (client) {
     var bucket = buckets[idx];
     return bucket[ipn % bucket.length];
   });
-}
+};
 
 /**
  * load from a server database for IPs of resolvers to test.
  */
 exports.init = function (db, cb) {
-  i2c-build.getGenericMap(false, false).then(function(map) {
-    asnmap = i2c-lookup.lookup.bind({}, map);
+  i2cbuild.getGenericMap(false, false).then(function(map) {
+    asnmap = i2clookup.lookup.bind({}, map);
     var input = fs.createReadStream(db);
     var length = fs.statSync(db).size;
     input
@@ -112,7 +112,7 @@ exports.getServer = function (client) {
  * Check if a client has been able to talk to a server.
  */
 exports.isSuccess = function (client, server) {
-  return clientSuccess[client] && clientSuccess[client][server] == true;
+  return clientSuccess[client] && clientSuccess[client][server] === true;
 };
 
 /**
@@ -130,7 +130,7 @@ exports.record = function (client, server, success) {
     // Step forwards.
     clientLists[client].shift();
     // Just TTL left.
-    if (clientLists[client].length == 1) {
+    if (clientLists[client].length === 1) {
       delete clientLists[client];
       delete clientSuccess[client];
     }
@@ -142,7 +142,7 @@ exports.record = function (client, server, success) {
 };
 
 exports.cullCaches = function () {
-  // Clena clientLists.
+  // Clean clientLists.
   var times = Object.keys(clientLists).map(function (client) { return clientLists[client][clientLists[client].length - 1];});
   var median = times.sort()[math.floor(times.length / 2)];
   var keys = Object.keys(clientLists);
